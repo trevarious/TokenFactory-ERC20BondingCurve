@@ -1,66 +1,49 @@
-## Foundry
+# ShillersNoVRF & BondCoin
 
-**Foundry is a blazing fast, portable and modular toolkit for Ethereum application development written in Rust.**
+This repository contains two Solidity smart contracts: **ShillersNoVRF** and **BondCoin**. These contracts allow users to create and manage speculative tokens with dynamic pricing mechanisms, anti-bot features, and protocol fee collection.
 
-Foundry consists of:
+## Overview
 
--   **Forge**: Ethereum testing framework (like Truffle, Hardhat and DappTools).
--   **Cast**: Swiss army knife for interacting with EVM smart contracts, sending transactions and getting chain data.
--   **Anvil**: Local Ethereum node, akin to Ganache, Hardhat Network.
--   **Chisel**: Fast, utilitarian, and verbose solidity REPL.
+The two contracts work together to enable the creation of user-generated tokens (PumpCoins) with dynamic pricing and associated buying/selling functionality. The **ShillersNoVRF** contract allows the creation of new tokens, while **BondCoin** defines the logic for dynamic pricing, cooldowns, and protocol fees.
 
-## Documentation
+### Contracts:
 
-https://book.getfoundry.sh/
+1. **ShillersNoVRF**: 
+   - A contract for creating unique tokens (PumpCoins) with dynamic scaling factors.
+   - Allows the owner to track and manage coins.
+   
+2. **BondCoin**: 
+   - A speculative ERC20 token with a dynamic pricing mechanism, market dynamics, and anti-bot measures.
+   - Includes functionality for buying, selling, and collecting protocol fees.
 
-## Usage
+---
 
-### Build
+## ShillersNoVRF Contract
 
-```shell
-$ forge build
-```
+### Description
 
-### Test
+The **ShillersNoVRF** contract is responsible for creating speculative tokens (PumpCoins) by allowing users to trigger a random scaler and exponent. It keeps track of all created tokens and their respective creators.
 
-```shell
-$ forge test
-```
+### Key Features
 
-### Format
+- **Create PumpCoins**: Users can create a custom token (PumpCoin) by providing a name and symbol.
+- **Tracking Creators**: The contract maps each token to its creator.
+- **Only Owner**: Certain administrative actions can only be performed by the contract owner.
 
-```shell
-$ forge fmt
-```
+### Functions
 
-### Gas Snapshots
+- **`createCoin(string memory name, string memory symbol)`**:
+  - Creates a new **PumpCoin** (BondCoin) for the caller with the given name and symbol.
+  - Emits a `TokenCreated` event when successful.
+  
+- **`getCreatorOfCoin(address coin)`**:
+  - Retrieves the creator of a particular coin by its address.
 
-```shell
-$ forge snapshot
-```
+- **`getCoins()`**:
+  - Returns an array of all created coins' addresses.
 
-### Anvil
+### Example
 
-```shell
-$ anvil
-```
-
-### Deploy
-
-```shell
-$ forge script script/Counter.s.sol:CounterScript --rpc-url <your_rpc_url> --private-key <your_private_key>
-```
-
-### Cast
-
-```shell
-$ cast <subcommand>
-```
-
-### Help
-
-```shell
-$ forge --help
-$ anvil --help
-$ cast --help
-```
+```solidity
+ShillersNoVRF shillersContract = new ShillersNoVRF();
+address newCoinAddress = shillersContract.createCoin("MyToken", "MTK");
