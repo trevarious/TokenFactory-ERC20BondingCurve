@@ -6,102 +6,67 @@ import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol
 
 /**
  * @title BondCoin
- * @dev This contract represents a speculative ERC20 token with dynamic pricing,
- * buy/sell functionality, and a protocol fee mechanism. The contract implements
- * anti-bot measures and market dynamics through a cooldown and max sell percentage.
+ * @dev A token contract implementing a bonding curve with buy/sell functionality and protocol fees.
  */
 contract BondCoin is ERC20, ReentrancyGuard {
-    /**
-     * @dev The maximum supply of ShillCoin tokens.
-     */
+    // Maximum supply of the token
     uint256 public constant MAX_SUPPLY = 1_000_000 * 10 ** 18;
 
-    /**
-     * @dev The initial price of ShillCoin (in wei per token).
-     */
+    // Initial price for the token
     uint256 public constant INITIAL_PRICE = 0.0001 ether;
 
-    /**
-     * @dev The maximum price of ShillCoin (in wei per token).
-     */
+    // Maximum price for the token
     uint256 public constant MAX_PRICE = 1 ether;
 
-    /**
-     * @dev The protocol fee percentage on every buy and sell transaction.
-     */
+    // Protocol fee percentage on transactions
     uint256 public constant PROTOCOL_FEE_PERCENT = 5;
 
-    /**
-     * @dev The maximum percentage of the current total supply that can be sold in one transaction.
-     */
+    // Maximum percentage of total supply a user can sell at once
     uint256 public constant MAX_SELL_PERCENT = 20;
 
-    /**
-     * @dev The cooldown time between consecutive sell actions for an address.
-     */
+    // Minimum time between consecutive sales by a user
     uint256 public constant SELL_COOLDOWN = 5 minutes;
 
-    /**
-     * @dev Address of the fee collector where the protocol fee is sent.
-     */
+    // Address where protocol fees are collected
     address public immutable feeCollector;
 
-    /**
-     * @dev Total fee collected by the contract.
-     */
+    // Total amount of fees collected
     uint256 public totalFeeCollected;
 
-    /**
-     * @dev Tracks the last sell timestamp for each address.
-     */
+    // Mapping to track the last sell timestamp for each address
     mapping(address => uint256) public lastSellTimestamp;
 
-    /**
-     * @dev Tracks the total amount of tokens sold by each address.
-     */
+    // Mapping to track total amount sold by each address
     mapping(address => uint256) public totalSold;
 
-    /**
-     * @dev Emitted when tokens are bought.
-     * @param buyer Address of the buyer.
-     * @param amount Amount of tokens bought.
-     * @param price Price per token at the time of purchase.
-     */
+    // Event emitted when tokens are bought
     event TokenBought(address indexed buyer, uint256 amount, uint256 price);
 
-    /**
-     * @dev Emitted when tokens are sold.
-     * @param seller Address of the seller.
-     * @param amount Amount of tokens sold.
-     * @param price Price per token at the time of sale.
-     */
+    // Event emitted when tokens are sold
     event TokenSold(address indexed seller, uint256 amount, uint256 price);
 
-    /**
-     * @dev Emitted when the protocol fee is collected.
-     * @param amount Amount of fee collected.
-     */
+    // Event emitted when protocol fees are collected
     event ProtocolFeeCollected(uint256 amount);
 
     /**
-     * @dev Constructor that initializes the token name, symbol, and fee collector.
-     * @param _creator Address of the creator (initial token distribution).
-     * @param _name Name of the token.
-     * @param _symbol Symbol of the token.
-     * @param _feeCollector Address where the protocol fee will be collected.
+     * @dev Constructor to initialize the contract with creator and fee collector.
+     * @param _creator The address of the creator to allocate the initial supply to.
+     * @param _name The name of the token.
+     * @param _symbol The symbol of the token.
+     * @param _feeCollector The address that will collect protocol fees.
      */
     constructor(address _creator, string memory _name, string memory _symbol, address _feeCollector)
         ERC20(_name, _symbol)
     {
         feeCollector = _feeCollector;
 
-        // Initial supply allocation (20%)
+        // Initial supply allocation (20% of the max supply)
         uint256 initialSupply = MAX_SUPPLY * 20 / 100;
         _mint(_creator, initialSupply);
     }
 
     /**
-     * @dev Returns the current price of the token based on the dynamic pricing mechanism.
+     * @dev Returns the current price of the token based on the remaining supply.
      * @return The current price of the token in wei.
      */
     function getCurrentPrice() public view returns (uint256) {
@@ -110,15 +75,14 @@ contract BondCoin is ERC20, ReentrancyGuard {
         // Inverse bonding curve: price increases as supply decreases
         uint256 price = INITIAL_PRICE * MAX_SUPPLY / (currentSupply + 1);
 
+        // Ensure the price does not exceed the maximum allowed price
         return price > MAX_PRICE ? MAX_PRICE : price;
     }
 
     /**
-     * @dev Allows the user to buy tokens with ETH.
-     * @dev The price per token is determined by the dynamic pricing mechanism.
-     * @dev A protocol fee is deducted from the purchase amount and sent to the feeCollector.
-     * @dev The maximum supply cannot be exceeded.
-     * @dev Emits a TokenBought event upon success.
+     * @dev Allows users to buy tokens by sending ETH to the contract.
+     * @notice The amount of tokens purchased is based on the current price and the ETH sent.
+     * @dev Calls a nonReentrant modifier to prevent re-entrancy attacks.
      */
     function buy() public payable nonReentrant {
         require(msg.value > 0, "Must send ETH");
@@ -144,13 +108,10 @@ contract BondCoin is ERC20, ReentrancyGuard {
     }
 
     /**
-     * @dev Allows the user to sell tokens for ETH.
-     * @dev The amount of tokens that can be sold is limited to a percentage of the total supply.
-     * @dev A protocol fee is deducted from the sale and sent to the feeCollector.
-     * @dev Tokens are burned upon successful sale.
-     * @dev A cooldown is enforced between consecutive sell actions.
-     * @dev Emits a TokenSold event upon success.
-     * @param amount Amount of tokens to sell.
+     * @dev Allows users to sell tokens for ETH.
+     * @param amount The number of tokens to sell.
+     * @notice The maximum sell amount is limited to prevent large market sell-offs.
+     * @dev Calls a nonReentrant modifier to prevent re-entrancy attacks.
      */
     function sell(uint256 amount) public nonReentrant {
         require(balanceOf(msg.sender) >= amount, "Insufficient balance");
@@ -187,16 +148,15 @@ contract BondCoin is ERC20, ReentrancyGuard {
     }
 
     /**
-     * @dev Fallback function that allows users to buy tokens by sending ETH directly to the contract.
-     * @dev This function calls the `buy` method internally.
+     * @dev Fallback function to allow buying tokens by sending ETH directly to the contract address.
      */
     receive() external payable {
         buy();
     }
 
     /**
-     * @dev Returns the current balance of ETH held by the contract.
-     * @return The current balance of the contract in wei.
+     * @dev Returns the current contract's ETH balance.
+     * @return The contract's current ETH balance in wei.
      */
     function getContractBalance() external view returns (uint256) {
         return address(this).balance;
@@ -204,7 +164,7 @@ contract BondCoin is ERC20, ReentrancyGuard {
 
     /**
      * @dev Returns the total amount of protocol fees collected by the contract.
-     * @return The total amount of protocol fees in wei.
+     * @return The total fee amount in wei.
      */
     function getFeeCollected() external view returns (uint256) {
         return totalFeeCollected;
